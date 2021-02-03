@@ -1,3 +1,4 @@
+
 #include <opencv2/imgproc.hpp>
 #include <opencv2/highgui.hpp>
 #include <iostream>
@@ -10,20 +11,32 @@
 #include <string>
 
 using namespace cv;
+using namespace std;
 
 
 
-Mat src_gray;
-Mat dst, detected_edges;
+Mat src_gray, detected_edges, half_img;
 
-int lowThreshold = 17;
-int highThreshold = 31;
+//캐니의 쓰레쉬홀드
+int canny_lowThreshold = 42;
+int canny_highThreshold = 68;
+int H_threshold = 10;
 
 
 static void CannyThreshold(int, void*)
 {
-    blur(src_gray, detected_edges, Size(3, 3));
-    Canny(detected_edges, detected_edges, lowThreshold, highThreshold, 3);
+    vector<Vec2f> lines;
+
+    Canny(half_img, detected_edges, canny_lowThreshold, canny_highThreshold, 3);
+    HoughLines(detected_edges, lines, CV_PI / 180, H_threshold,0,0);
+    //라인 긋는거 찾아봐야함
+    /*
+    while (int i=lines.size())
+    {
+        line(src_gray, lines[i][0], lines[i][1], COLOR_BLUE, 2);
+        i--;
+    }
+    */
 
     imshow("Canny Edge", detected_edges);
 
@@ -33,43 +46,28 @@ static void CannyThreshold(int, void*)
 int main(int argc, char** argv)
 {
 
-    src_gray = imread("capture1.jpg", IMREAD_GRAYSCALE); // Load an image
+    src_gray = imread("capture3.jpg", IMREAD_GRAYSCALE); // Load an image
     if (src_gray.empty())
     {
-        std::cout << "Could not open or find the image!\n" << std::endl;
+        std::cout << "파일을 찾을 수가 없다.\n" << std::endl;
         std::cout << "Usage: " << argv[0] << " <Input image>" << std::endl;
         return -1;
     }
 
-
+    //그레이스케일 된 화면 먼저 출력
     namedWindow("Canny Edge", WINDOW_AUTOSIZE);
-    createTrackbar("Min Threshold:", "Canny Edge", &lowThreshold, 1000, CannyThreshold);
-    createTrackbar("Max Threshold:", "Canny Edge", &highThreshold, 1000, CannyThreshold);
+    namedWindow("Canny Edge", WINDOW_AUTOSIZE);
+    imshow("grayed", src_gray);
+
+    //반으로 갈라서 아래쪽 ROI 설정
+    half_img = src_gray(Rect(0,src_gray.rows/2,src_gray.cols,src_gray.rows/2));
+
+    
+    createTrackbar("Min Threshold:", "Canny Edge", &canny_lowThreshold, 1000, CannyThreshold);
+    createTrackbar("Max Threshold:", "Canny Edge", &canny_highThreshold, 1000, CannyThreshold);
+    createTrackbar("H_threshold:", "Canny Edge", &H_threshold, 1000, CannyThreshold);
     CannyThreshold(0, 0);
 
-    std::vector<Vec2f> lines;
-    for (int i = 10; i > 0; i--)
-    {
-        int threshold = (src_gray.rows + src_gray.cols) * i / 10;
-        HoughLines(detected_edges, lines, 1, CV_PI / 180, threshold, 0, 0, 0, CV_PI);
-        if (lines.size() > 1)
-        {
-            for (size_t i = 0; i < lines.size(); i++)
-            {
-                float rho = lines[i][0];
-                float theta = lines[i][1];
-                double a = cos(theta), b = sin(theta);
-                double x0 = a * rho, y0 = b * rho;
-                Point pt1(cvRound(x0 + (src_gray.rows + src_gray.cols) * (-b)),
-                    cvRound(y0 + (src_gray.rows + src_gray.cols) * (a)) + src_gray.rows / 2);
-                Point pt2(cvRound(x0 - (src_gray.rows + src_gray.cols) * (-b)),
-                    cvRound(y0 - (src_gray.rows + src_gray.cols) * (a)) + src_gray.rows / 2);
-
-                cv::line(src_gray, pt1, pt2, cvScalar(0, 0, 255));
-            }
-            break;
-        }
-    }
 
     waitKey(0);
     return 0;
